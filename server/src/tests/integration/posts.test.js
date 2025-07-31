@@ -2,22 +2,19 @@
 
 const request = require('supertest');
 const mongoose = require('mongoose');
-const { MongoMemoryServer } = require('mongodb-memory-server');
 const app = require('../../src/app');
 const Post = require('../../src/models/Post');
 const User = require('../../src/models/User');
 const { generateToken } = require('../../src/utils/auth');
+const { connectTestDB, disconnectTestDB } = require('../test-db');
 
-let mongoServer;
 let token;
 let userId;
 let postId;
 
 // Setup in-memory MongoDB server before all tests
 beforeAll(async () => {
-  mongoServer = await MongoMemoryServer.create();
-  const mongoUri = mongoServer.getUri();
-  await mongoose.connect(mongoUri);
+  await connectTestDB();
 
   // Create a test user
   const user = await User.create({
@@ -41,8 +38,7 @@ beforeAll(async () => {
 
 // Clean up after all tests
 afterAll(async () => {
-  await mongoose.disconnect();
-  await mongoServer.stop();
+  await disconnectTestDB();
 });
 
 // Clean up database between tests
@@ -119,8 +115,7 @@ describe('GET /api/posts', () => {
 
   it('should filter posts by category', async () => {
     const categoryId = mongoose.Types.ObjectId().toString();
-    
-    // Create a post with specific category
+
     await Post.create({
       title: 'Filtered Post',
       content: 'This post should be filtered by category',
@@ -139,7 +134,6 @@ describe('GET /api/posts', () => {
   });
 
   it('should paginate results', async () => {
-    // Create multiple posts
     const posts = [];
     for (let i = 0; i < 15; i++) {
       posts.push({
@@ -154,7 +148,7 @@ describe('GET /api/posts', () => {
 
     const page1 = await request(app)
       .get('/api/posts?page=1&limit=10');
-    
+
     const page2 = await request(app)
       .get('/api/posts?page=2&limit=10');
 
@@ -215,7 +209,6 @@ describe('PUT /api/posts/:id', () => {
   });
 
   it('should return 403 if not the author', async () => {
-    // Create another user
     const anotherUser = await User.create({
       username: 'anotheruser',
       email: 'another@example.com',
@@ -243,8 +236,7 @@ describe('DELETE /api/posts/:id', () => {
       .set('Authorization', `Bearer ${token}`);
 
     expect(res.status).toBe(200);
-    
-    // Verify post is deleted
+
     const deletedPost = await Post.findById(postId);
     expect(deletedPost).toBeNull();
   });
@@ -255,4 +247,4 @@ describe('DELETE /api/posts/:id', () => {
 
     expect(res.status).toBe(401);
   });
-}); 
+});
